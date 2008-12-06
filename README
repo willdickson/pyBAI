@@ -1,0 +1,20 @@
+pyBAI 
+=== 
+
+Provides RS232 communications with Aerotech BA-Intellidrive PID servo
+controllers.
+
+Note: This package is currently being developmented and is not yet
+fully functional.
+
+Installation
+
+   * Installation instructions can be found in the INSTALL file.  
+     
+Author
+
+   * Will Dickson (wbd@caltech.edu)
+ 
+
+borf_control may be freely distributed and modified in accordance with
+the GNU Lesser General Public License.
