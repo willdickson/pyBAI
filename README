@@ -4,8 +4,8 @@ pyBAI
 Provides RS232 communications with Aerotech BA-Intellidrive PID servo
 controllers.
 
-Note: This package is currently being developmented and is not yet
-fully functional.
+Note: This package is currently being developed and is not yet fully
+functional.
 
 Installation
 
