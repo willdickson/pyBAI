@@ -10,19 +10,18 @@ Released under the LGPL Licence, Version 3
 
 This file is part of pyBAI.
 
-simple_step is free software: you can redistribute it and/or modify it
+pyBAI is free software: you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
     
-simple_step is distributed in the hope that it will be useful, but
+pyBAI is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public
-License along with simple_step.  If not, see
-<http://www.gnu.org/licenses/>.
+License along with pyBAI.  If not, see <http://www.gnu.org/licenses/>.
 
 ------------------------------------------------------------------------
 
@@ -49,7 +48,7 @@ DFLT_WRITE_SLEEP_CNT = 20
 WRITE_RETURN_NCHAR = 3
 START_CHRS = [chr(3),chr(2)]
 STOP_CHRS = [chr(10)]
-DISPLAY_LINE = '-'*80
+DISPLAY_LINE = '-'*55
     
 class BAI:
 
@@ -140,8 +139,10 @@ class BAI:
         status_dict = self.get_status(address=address)
         msg_list = [msg for b,msg in self.status_list]
         for msg in msg_list:
-            print '%s: %s'%(msg, str(status_dict[msg]))
-                
+            print '%s:'%(msg,),
+            print ' '*(30-len(msg)),
+            print '%s'%(str(status_dict[msg]),)
+
 
     def read_param(self,param,address=None):
         """
@@ -200,16 +201,20 @@ class BAI:
                     if k == 'doc_str':
                         pass
                     elif k == 'type':
-                        print '  %s: %s'%(k,BAI_TYPE_DICT[v])
+                        print '  %s: %s'%(k,BAI_data.BAI_TYPE_DICT[v])
                     else:
                         print '  %s: %s'%(k,v)
                 print '  %s: %s'%('current', cur_val)
                 print 
             else:
-                print 'PRM:%d: %s = '%(num, param), 
-                print cur_val
+                num_str = 'PRM:%d:'%(num,) 
+                print num_str,
+                print ' '*(8 - len(num_str)),
+                prm_str = '%s'%(param,)
+                print prm_str,
+                print ' '*(25 - len(prm_str)),
+                print '%s'%(cur_val,)
         
-
 
     def write_param(self,param,val,address=None, write_ack=True):
         """
