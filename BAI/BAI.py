@@ -150,6 +150,10 @@ class BAI:
 
         Need to check limits/allowed values  before sending parameters
         """
+        # Check that param exists
+        if not self.param_dict.has_key(param):
+             raise ValueError, "unknown parameter '%s'"%(param,)
+        
         # Creat serial command and send
         read_chrs = self.sys_cmd_dict['read parameter']['cmd']
         num = self.param_dict[param]['num']
@@ -183,38 +187,25 @@ class BAI:
         """
         Print BAI parameters
         """
-        print 
-        print 'BAI parameters'
-        if doc==False:
-            print DISPLAY_LINE
+        print
+        if doc == False:
+            print 'PRM:#     Parameter                  Value'
+            print '---------------------------------------------------'
+        else:
+            print 
+            print 'BAI Parameters'
+            print 
+            
         for num, param in self.num2param_list:
 
             param_dict = self.param_dict[param]
             cur_val = self.read_param(param,address=address)
 
             if doc==True:
-                print DISPLAY_LINE
-                print param_dict['doc_str']
-                print '  %s: %s'%('name', param)
-
-                for k,v in param_dict.iteritems():
-                    if k == 'doc_str':
-                        pass
-                    elif k == 'type':
-                        print '  %s: %s'%(k,BAI_data.BAI_TYPE_DICT[v])
-                    else:
-                        print '  %s: %s'%(k,v)
-                print '  %s: %s'%('current', cur_val)
-                print 
+                print_param_verbose(num,param,param_dict,cur_val)
             else:
-                num_str = 'PRM:%d:'%(num,) 
-                print num_str,
-                print ' '*(8 - len(num_str)),
-                prm_str = '%s'%(param,)
-                print prm_str,
-                print ' '*(25 - len(prm_str)),
-                print '%s'%(cur_val,)
-        
+                print_param_normal(num, param, cur_val)
+
 
     def write_param(self,param,val,address=None, write_ack=True):
         """
@@ -222,7 +213,7 @@ class BAI:
         """
         if not address:
             address = self.address
-
+            
         val_type = self.param_dict[param]['type']
 
         # Check/cast val type
@@ -283,13 +274,38 @@ class BAI:
         (parameter name, current value, default value)
         """
         nondefault = [] 
-        for num, param in dev.num2param_list:
+        for num, param in self.num2param_list:
             default_val = self.param_dict[param]['default']
-            current_val = dev.read_param(param,address=address)
+            current_val = self.read_param(param,address=address)
             if current_val != default_val:
-                nondefault.append((param,current_val,default_val))
+                nondefault.append((num,param,current_val,default_val))
+            #nondefault.append((num,param,current_val,default_val))
         return nondefault
             
+    def print_nondefault(self,address=None):
+        """
+        Prints nondefualt parametetr
+        """
+        nondefault = self.get_nondefault(address=address)
+        
+        print 
+        print 'PRM:#     Parameter                  Value         Default '
+        print '----------------------------------------------------------------'
+        for num, param, current, default in nondefault:
+            num_str = 'PRM:%d:'%(num,) 
+            print num_str,
+            print ' '*(8 - len(num_str)),
+            prm_str = '%s'%(param,)
+            print prm_str,
+            print ' '*(25 - len(prm_str)),
+            cur_str = '%s'%(current,)
+            print cur_str,
+            print ' '*(12 - len(cur_str)),
+            dft_str = '%s'%(default,)
+            print dft_str
+        print    
+        
+
     def set2default(self,address=None, save=True, toggle=True):
         """
         Set drive parameters to default values - don't do this with multiple
@@ -359,8 +375,13 @@ class BAI:
         
 
 # ---------------------------------------------------------------
-
-
+def num2param(num):
+    """
+    Convert parameter number to parameter name
+    """
+    num2param_dict = dict(BAI_data.NUM2PARAM_LIST)
+    return num2param_dict[num]
+    
 def create_cmd(address, cmd_chrs, arg_list= ()):
     """
     Create seraial command
@@ -379,26 +400,70 @@ def create_cmd(address, cmd_chrs, arg_list= ()):
     cmd = struct.pack('c'*len(cmd_list),*cmd_list)
     return cmd
 
-                
-def print_param_doc(doc=False):
+def print_param_verbose(num,param,param_dict,cur_val):
     """
-    Prints BA-intellidrive parameters
+    Print parameter in verbose mode. Include #, name, 
+    documentation, current and default values.
     """
-    print 
-    for param in PARAM_LIST: 
-        dict = PARAM_DICT[param]
-        if doc:
-            print '-'*80
-            print dict['doc_str']
-        print '  %s: %s'%('name', param)
-
-        for k,v in dict.iteritems():
-            if k == 'doc_str':
-                pass
-            elif k == 'type':
-                print '  %s: %s'%(k,BAI_TYPE_DICT[v])
+    n = 10
+    
+    print '-'*70
+    print param_dict['doc_str']
+    name_str = ' name:'
+    print name_str,
+    print ' '*(n-len(name_str)),
+    print '%s'%(param,)
+    
+    for k,v in param_dict.iteritems():
+        if k == 'doc_str':
+            pass
+        else:
+            k_str = ' %s:'%(k,)
+            print k_str,
+            print ' '*(n-len(k_str)),
+            if k == 'type':
+                print '%s'%(BAI_data.BAI_TYPE_DICT[v],)
             else:
-                print '  %s: %s'%(k,v)
-        print 
+                print '%s'%(v,)
+    cur_str = ' current:'
+    print cur_str,
+    print ' '*(n-len(cur_str)),
+    print '%s'%(cur_val,)
+    print 
+
+def print_param_normal(num, param, cur_val):
+    """
+    Print parameter in normal mode. Include only #, name, 
+    and current value.
+    """
+    num_str = 'PRM:%d:'%(num,) 
+    print num_str,
+    print ' '*(8 - len(num_str)),
+    prm_str = '%s'%(param,)
+    print prm_str,
+    print ' '*(25 - len(prm_str)),
+    print '%s'%(cur_val,)
+
+                
+# def print_param_doc(doc=False):
+#     """
+#     Prints BA-intellidrive parameters
+#     """
+#     print 
+#     for param in PARAM_LIST: 
+#         dict = PARAM_DICT[param]
+#         if doc:
+#             print '-'*80
+#             print dict['doc_str']
+#         print '  %s: %s'%('name', param)
+
+#         for k,v in dict.iteritems():
+#             if k == 'doc_str':
+#                 pass
+#             elif k == 'type':
+#                 print '  %s: %s'%(k,BAI_TYPE_DICT[v])
+#             else:
+#                 print '  %s: %s'%(k,v)
+#         print 
 
 # -------------------------------------------------------

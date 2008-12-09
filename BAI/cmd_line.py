@@ -33,6 +33,7 @@ Author: William Dickson
 ------------------------------------------------------------------------
 """
 import BAI
+import BAI_data
 import atexit
 import optparse
 import ConfigParser
@@ -86,16 +87,28 @@ class BAI_Cmd_Line:
         Run specified command
         """
         if len(self.args) == 0:
-            self.dev.print_param()
-
+            self.parser.print_help()
+            sys.exit(0)
         
-
+        else:
+            cmd_str = self.args[0]
+            try:
+                cmd = self.cmd_table[cmd_str]
+            except KeyError:
+                print "ERROR: command, '%s', not found"%(cmd_str,)
+                print 
+                self.parser.print_help()
+                sys.exit(1)
+            # Run command
+            cmd()
+        return
+                
     def print_options(self):
         """
         Pretty print option settings
         """
         print 
-        print '                 Options'
+        print 'Options'
         print '---------------------------------------------'
         for k,v in self.options_tagged.iteritems():
             val, src = v[0], v[1]
@@ -261,32 +274,70 @@ class BAI_Cmd_Line:
             if options[k] == None:
                 del options[k]
 
-
         return options, args, parser
 
-
-
-    def close(self):        
-        pass
-
-    def run_cmd(self):
-        pass
     
     def print_status(self):
-        pass
+        """ 
+        Prints status information 
+        """
+        if len(self.args) != 1:
+            print "ERROR: too many arguments for command 'print-status'"
+            sys.exit(1)
+        address = self.options['address']
+        self.dev.print_status(address=address)
 
     def print_param(self):
-        
-        dev.print_param()
+        """ 
+        Prints device parameters 
+        """
+        if len(self.args) != 1:
+            print "ERROR: too many arguments for command 'print-param'"
+            sys.exit(1)
+            
+        address = self.options['address']
+        self.dev.print_param(doc=self.options['verbose'],address=address)
 
     def get_param(self):
-        pass
+        if len(self.args) != 2:
+            print "ERROR: command 'get-param' requires parameter name or number"
+            sys.exit(1)
 
+        param = self.args[1]
+        if BAI_data.PARAM_DICT.has_key(self.args[1]):
+            param = self.args[1]
+        else:
+            # Convert to integer
+            try:
+                num = int(self.args[1])
+            except ValueError:
+                print "ERROR: parameter name not found and unable to convert to int"
+                sys.exit(1)
+
+            # Get parameter name corresponding to integer
+            try:
+                param = BAI.num2param(num)
+            except KeyError:
+                print "ERROR: number %d does not correspond to known parameter"
+                sys.exit(1)
+        
+                
+        # Get current parameter value
+        cur_val = self.dev.read_param(param)
+        param_dict = BAI_data.PARAM_DICT[param]
+        num = param_dict['num']
+
+        # Display value
+        if self.options['verbose'] == True:
+            BAI.print_param_verbose(num,param,param_dict,cur_val)
+        else:
+            BAI.print_param_normal(num,param,cur_val)
+            
     def set_param(self):
         pass
 
     def nondefault(self):
-        pass
+        self.dev.print_nondefault()
 
     def toggle_mode(self):
         pass
