@@ -50,13 +50,18 @@ class BAI_Cmd_Line:
     def __init__(self):
     
         self.cmd_table = {
-            'print-status' : self.print_status, 
-            'print-param'  : self.print_param,
-            'get-param'    : self.get_param,
-            'set-param'    : self.set_param,
-            'nondefault'   : self.nondefault,
-            'toggle-mode'  : self.toggle_mode,
-            'reset'        : self.reset,
+            'help'            : self.help,
+            'status'          : self.print_status,
+            'param-from-file' : self.param_from_file,
+            'param-to-file'   : self.param_to_file,
+            'print-param'     : self.print_param,
+            'read-param'      : self.read_param,
+            'write-param'     : self.write_param,
+            'non-default'     : self.nondefault,
+            'toggle-mode'     : self.toggle_mode,
+            'reset'           : self.reset,
+            'save-to-flash'   : self.save_to_flash,
+            'set-to-default'  : self.set_to_default,
             }
 
         self.help_table = {}
@@ -80,13 +85,15 @@ class BAI_Cmd_Line:
         try:
             self.dev.close()
         except:
-            pass
+            print "WARNING: error closing BAI device"
 
     def run(self):
         """
-        Run specified command
+        Run command given on the command line
         """
         if len(self.args) == 0:
+            print "ERROR: no command given"
+            print 
             self.parser.print_help()
             sys.exit(0)
         
@@ -99,6 +106,7 @@ class BAI_Cmd_Line:
                 print 
                 self.parser.print_help()
                 sys.exit(1)
+
             # Run command
             cmd()
         return
@@ -174,8 +182,7 @@ class BAI_Cmd_Line:
         else:
             options = {}
         return options
-    
-        
+            
     def read_options_file(self, file):
         """
         Read and parse options file
@@ -219,8 +226,7 @@ class BAI_Cmd_Line:
                 raise RuntimeError, 'unexpected type encountered parsing options file (this is a bug)'
                 
         return options
-        
-        
+                
     def parse_cmd_options(self):
         """
         Parse command line options 
@@ -275,7 +281,6 @@ class BAI_Cmd_Line:
                 del options[k]
 
         return options, args, parser
-
     
     def print_status(self):
         """ 
@@ -291,59 +296,165 @@ class BAI_Cmd_Line:
         """ 
         Prints device parameters 
         """
-        if len(self.args) != 1:
-            print "ERROR: too many arguments for command 'print-param'"
-            sys.exit(1)
-            
         address = self.options['address']
         self.dev.print_param(doc=self.options['verbose'],address=address)
 
-    def get_param(self):
+    def read_param(self):
+        """
+        Read value of specific device parameter
+        """
         if len(self.args) != 2:
             print "ERROR: command 'get-param' requires parameter name or number"
             sys.exit(1)
 
-        param = self.args[1]
-        if BAI_data.PARAM_DICT.has_key(self.args[1]):
-            param = self.args[1]
+        if self.args[1].lower() == 'all':
+            self.print_param()
         else:
-            # Convert to integer
-            try:
-                num = int(self.args[1])
-            except ValueError:
-                print "ERROR: parameter name not found and unable to convert to int"
-                sys.exit(1)
 
-            # Get parameter name corresponding to integer
-            try:
-                param = BAI.num2param(num)
-            except KeyError:
-                print "ERROR: number %d does not correspond to known parameter"
-                sys.exit(1)
-        
+            param = get_param_arg(self.args[1])
                 
-        # Get current parameter value
-        cur_val = self.dev.read_param(param)
-        param_dict = BAI_data.PARAM_DICT[param]
-        num = param_dict['num']
+            # Get current parameter value
+            cur_val = self.dev.read_param(param)
+            param_dict = BAI_data.PARAM_DICT[param]
+            num = param_dict['num']
 
-        # Display value
-        if self.options['verbose'] == True:
-            BAI.print_param_verbose(num,param,param_dict,cur_val)
-        else:
-            BAI.print_param_normal(num,param,cur_val)
+            # Display value
+            if self.options['verbose'] == True:
+                BAI.print_param_verbose(num,param,param_dict,cur_val)
+            else:
+                BAI.print_param_normal(num,param,cur_val)
             
-    def set_param(self):
-        pass
+    def write_param(self):
+        """
+        Write value of specified device parameter
+        """
+        if len(self.args) != 3:
+            print "ERROR: command 'set-param' requires parameter name/number and value"
+            sys.exit(1)
+
+        # Check/get parameter name from command line arguments
+        param = get_param_arg(self.args[1])
+        
+        # Get value
+        value = get_value_arg(param, self.args[2])
+        
+        # Deal with special cases baudrate, mode, etc
+        if param == 'baud rate':
+            pass
+        elif param == 'toggle mode':
+            pass
+        else:
+            address = self.options['address']
+            self.dev.write_param(param,value,address=address)
+
+
+    def param_from_file(self):
+        """
+        Read all parameters from text file and write them to device
+        """
+        if len(self.args) != 2:
+            print "ERROR: command 'param-to-file' requires input filename"
+            sys.exit(1)
+            
+        filename = self.args[1]
+        
+        # Read parameters from file
+        try:
+            fid = open(filename,"r")
+        except IOError, err:
+            print "ERROR: unable to open file, %s"%(err,)
+            sys.exit(1)
+            
+        param_list = []
+        for i, line in enumerate(fid.readlines()):
+            line_split = line.split()
+            if len(line_split) != 3:
+                print "ERROR: incorrect data format on line %d"%(i,)
+                sys.exit(1)
+            param = line_split[1].replace('_',' ')
+            value = line_split[2]
+            param_list.append((param,value))
+        fid.close()
+        
+        
+        # Write parameters to drice
+        for param, value in param_list:
+
+            print 'writing: ', param
+            if param == 'baud rate':
+                # Need to becareful when setting baudrate
+                continue
+            else:
+                self.dev.write_param(param,value)
+                
+                    
+
+    def param_to_file(self):
+        """
+        Read all parameters from device and write the to text file.
+        """
+        if len(self.args) != 2:
+            print "ERROR: command 'param-to-file' requires output filename"
+            sys.exit(1)
+
+        filename = self.args[1]
+        
+        # Check if file exists
+        if os.path.exists(filename):
+            ans = raw_input("file: %s already exists - overwrite (Y)/N: "%(filename,))
+            if not ((ans == 'Y') or (ans == '')):
+                print 'quiting'
+                sys.exit(1)
+            else:
+                print 'overwriting: %s'%(filename,)
+                        
+        # Write parameters to output file
+        try:
+            fid = open(filename,"w")
+        except IOError, err:
+            print "ERROR: unable to open file, %s"%(err,)
+            sys.exit(1)
+
+        address = self.options['address']
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            param_dict = BAI_data.PARAM_DICT[param]
+            cur_val = self.dev.read_param(param,address=address)
+            param = param.replace(' ','_')
+            num_str = 'PRM:%d:'%(num,) 
+            prm_str = '%s'%(param,)
+            cur_str = '%s\n'%(cur_val,)
+            fid.write(num_str)
+            fid.write(' '*(9 - len(num_str)))
+            fid.write(prm_str)
+            fid.write(' '*(25 - len(prm_str)))
+            fid.write(cur_str)
+        fid.close()
+                
+    def save_to_flash(self):
+        """
+        Save current parameter values to drives flash memory. Note, some
+        parameters require a device reset in order to take effect.
+        """
+        print "sorry, save-to-flash not yet implemented"
 
     def nondefault(self):
+        """
+        Print all parameters which are not set to the default value.
+        """
         self.dev.print_nondefault()
 
     def toggle_mode(self):
-        pass
+        print "sorry, toggle-mode not yet implemented"
     
     def reset(self):
-        pass
+        print "sorry, reset not yet implemented"
+
+    def set_to_default(self):
+        print "sorry, set-to-default not yet implemented"
+        
+    def help(self):
+        print "sorry, help not yet implemented"
+        
 
     options_type = {
         'verbose'       : 'boolean',
@@ -368,7 +479,7 @@ class BAI_Cmd_Line:
     home_config_file = '.bai_options'
 
     
-    # Help strings ---------------------------------------------
+    # Help strings --------------------------------------------------
 
     usage = """%prog [OPTION] command <arg> 
 
@@ -376,20 +487,88 @@ class BAI_Cmd_Line:
 BA-Intellidrive PID servo controllers.
 
 Commands:
+ help             - get help 
+ non-default      - print all nondefault device parameters
+ param-from-file  - read all parameters from file and write them to drive
+ param-to-file    - read all parameters from drive and write them to a file
+ read-param       - read device parameter value
+ reset            - reset drive
+ save-to-flash    - save parameter values in flash memory
+ status           - print device status information
+ toggle-mode      - toggle mode (local/remote)
+ write-param      - set device parameter
 
- get_param       - get device parameter value
- nondefault      - print all nondefault device parameters 
- print-param     - print all device parameters
- print-status    - print device status information
- reset           - reset drive
- set-param       - set device parameter
- toggle-mode     - toggle mode (local/remote)
+
+* To get help for a specific command type: %prog help COMMAND
 """
 
-    
-    # End BAI_Cmd_Line -----------------------------------------
+# End BAI_Cmd_Line -----------------------------------------------------
 
 
+# ----------------------------------------------------------------------
+# Utility functions
+
+def get_value_arg(param,arg):
+    """
+    Utility function which converts command line argument to parameter
+    value. Checking type ...
+    """
+    # Deal with negatives
+    try:
+        val_type = BAI_data.PARAM_DICT[param]['type']
+    except:
+        print "ERROR: uknown parameter, '%s'"%(param,)
+        sys.exit(1)
+    if val_type in (BAI_data.BAI_INT, BAI_data.BAI_FLOAT):
+        if arg[0] == 'n':
+            arg = '-%s'%(arg[1:],)
+        
+    # Cast value to approriate type
+    try:
+        val = BAI.cast_val(param,arg)
+    except KeyError:
+        print "ERROR: uknown parameter, '%s'"%(param,)
+        sys.exit(1)
+    except ValueError:
+        val_type = BAI_data.PARAM_DICT[param]['type']
+        val_type_str = BAI_data.BAI_TYPE_DICT[val_type]
+        print "ERROR: unable to cast parameter to type %s"%(val_type_str,)
+        sys.exit(1)
+
+    # Check ranges
+    try:
+        BAI.check_val(param,val)
+    except ValueError, err:
+        print "ERROR: %s %s"%(param,err,)
+        sys.exit(1)
+
+    return val
+        
+
+def get_param_arg(arg):
+    """
+    Utility function converts command line argument to parameter name
+    if possible. If not it prints the appropriate error message and
+    exits. 
+    """
+    if BAI_data.PARAM_DICT.has_key(arg):
+        param = arg
+    else:
+        # Convert to integer
+        try:
+            num = int(arg)
+        except ValueError:
+            print "ERROR: parameter name not found and unable to convert to int"
+            sys.exit(1)
+            
+        # Get parameter name corresponding to integer
+        try:
+            param = BAI.num2param(num)
+        except KeyError:
+            print "ERROR: %d does not correspond to known parameter"%(num,)
+            sys.exit(1)
+    return param
+            
 def tag_dict(input_dict, string):
     """
     Tag dictionary value with string

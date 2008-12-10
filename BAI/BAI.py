@@ -62,18 +62,7 @@ class BAI:
                  timeout=DFLT_TIMEOUT,
                  baudrate=DFLT_BAUDRATE
                  ):
-
-        # Command & parameter dictionaries, etc.
-        self.sys_cmd_dict = BAI_data.SYS_CMD_DICT
-        self.prg_cmd_dict = BAI_data.PRG_CMD_DICT
-        self.param_dict = BAI_data.PARAM_DICT
-        self.param_list = BAI_data.PARAM_LIST
-        self.num2param_list = BAI_data.NUM2PARAM_LIST
         
-        # Status lists
-        self.serial_poll_list = BAI_data.SERIAL_POLL_LIST
-        self.status_list = BAI_data.STATUS_LIST
-
         # Device address for daisy chaining
         self.address = address
         
@@ -111,7 +100,7 @@ class BAI:
             address = self.address
 
         # Create serial command and send to BAI
-        status_chrs = self.sys_cmd_dict['print status']['cmd']
+        status_chrs = BAI_data.SYS_CMD_DICT['print status']['cmd']
         cmd = create_cmd(address, status_chrs,())
         self.comm.write(cmd)
         
@@ -120,7 +109,7 @@ class BAI:
         rtn_str = rtn_str[len(START_CHRS)+1:-len(STOP_CHRS)]
         status_int = int(rtn_str)
         status_dict = {}
-        for b,msg in self.status_list:
+        for b,msg in BAI_data.STATUS_LIST:
             if type(b) == list:
                 val = [bool(x & status_int) for x in b]
             else:
@@ -137,7 +126,7 @@ class BAI:
         print 'BAI status'
         print DISPLAY_LINE
         status_dict = self.get_status(address=address)
-        msg_list = [msg for b,msg in self.status_list]
+        msg_list = [msg for b,msg in BAI_data.STATUS_LIST]
         for msg in msg_list:
             print '%s:'%(msg,),
             print ' '*(30-len(msg)),
@@ -151,12 +140,12 @@ class BAI:
         Need to check limits/allowed values  before sending parameters
         """
         # Check that param exists
-        if not self.param_dict.has_key(param):
+        if not BAI_data.PARAM_DICT.has_key(param):
              raise ValueError, "unknown parameter '%s'"%(param,)
         
         # Creat serial command and send
-        read_chrs = self.sys_cmd_dict['read parameter']['cmd']
-        num = self.param_dict[param]['num']
+        read_chrs = BAI_data.SYS_CMD_DICT['read parameter']['cmd']
+        num = BAI_data.PARAM_DICT[param]['num']
         if not address:
             address = self.address
         cmd = create_cmd(address, read_chrs, (num,))
@@ -167,7 +156,7 @@ class BAI:
         rtn_str = rtn_str[3:-1]
 
         # Convert based on type
-        param_type = self.param_dict[param]['type'] 
+        param_type = BAI_data.PARAM_DICT[param]['type'] 
         if param_type == BAI_data.BAI_INT:
             val = int(rtn_str)
         elif param_type == BAI_data.BAI_CHR:
@@ -196,11 +185,9 @@ class BAI:
             print 'BAI Parameters'
             print 
             
-        for num, param in self.num2param_list:
-
-            param_dict = self.param_dict[param]
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            param_dict = BAI_data.PARAM_DICT[param]
             cur_val = self.read_param(param,address=address)
-
             if doc==True:
                 print_param_verbose(num,param,param_dict,cur_val)
             else:
@@ -213,22 +200,20 @@ class BAI:
         """
         if not address:
             address = self.address
-            
-        val_type = self.param_dict[param]['type']
 
-        # Check/cast val type
-        if val_type == BAI_data.BAI_INT:
-            val = int(val)
-        if val_type == BAI_data.BAI_FLOAT:
-            val = float(val)
-        if val_type == BAI_data.BAI_STR:
-            val = str(val)
-        if val_type == BAI_data.BAI_CHR:
-            val = str(ord(val))
+        # Check that param exists
+        if not BAI_data.PARAM_DICT.has_key(param):
+             raise ValueError, "unknown parameter '%s'"%(param,)
+
+        val_type = BAI_data.PARAM_DICT[param]['type']
+
+        # Cast and check value range
+        val = cast_val(param,val)
+        check_val(param,val)
                     
         # Create and send serial command
-        write_chrs = self.sys_cmd_dict['write parameter']['cmd']
-        num = self.param_dict[param]['num']
+        write_chrs = BAI_data.SYS_CMD_DICT['write parameter']['cmd']
+        num = BAI_data.PARAM_DICT[param]['num']
         cmd = create_cmd(address, write_chrs,(num, val))
         self.comm.write(cmd)
 
@@ -262,7 +247,7 @@ class BAI:
         if not address:
             address = self.address
 
-        save_chrs = self.sys_cmd_dict['save parameters']['cmd']
+        save_chrs = BAI_data.SYS_CMD_DICT['save parameters']['cmd']
         cmd =create_cmd(address, save_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
@@ -274,8 +259,8 @@ class BAI:
         (parameter name, current value, default value)
         """
         nondefault = [] 
-        for num, param in self.num2param_list:
-            default_val = self.param_dict[param]['default']
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            default_val = BAI_data.PARAM_DICT[param]['default']
             current_val = self.read_param(param,address=address)
             if current_val != default_val:
                 nondefault.append((num,param,current_val,default_val))
@@ -335,7 +320,7 @@ class BAI:
         if not address:
             address = self.address
 
-        reset_chrs = self.sys_cmd_dict['reset unit']['cmd']
+        reset_chrs = BAI_data.SYS_CMD_DICT['reset unit']['cmd']
         cmd = create_cmd(address, reset_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
@@ -344,7 +329,7 @@ class BAI:
         """
         Toggle unit between local and remote mode
         """
-        toggle_chrs = self.sys_cmd_dict['toggle mode']['cmd']
+        toggle_chrs = BAI_data.SYS_CMD_DICT['toggle mode']['cmd']
         cmd = create_cmd(None, toggle_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
@@ -357,7 +342,7 @@ class BAI:
         value. This is done to ensure that serial communications
         function at the new baudrate.
         """
-        allowed  = self.param_dict['baud rate']['allowed']
+        allowed  = BAI_data.PARAM_DICT['baud rate']['allowed']
         if not baudrate in allowed:
             raise ValueError, 'baudrate %d not allowed by BAI'%(baudrate,)
         if not baudrate in self.comm.BAUDRATES:
@@ -375,6 +360,49 @@ class BAI:
         
 
 # ---------------------------------------------------------------
+def cast_val(param, val):
+    """
+    Cast value to correct type for given parameter. If cast fails the 
+    appropriate exception is called.
+    """
+    val_type = BAI_data.PARAM_DICT[param]['type']
+    if val_type == BAI_data.BAI_INT:
+        val = int(val)
+    elif val_type == BAI_data.BAI_FLOAT:
+        val = float(val)
+    elif val_type == BAI_data.BAI_STR:
+        val = str(val)
+    elif val_type == BAI_data.BAI_CHR:
+        val = str(ord(val))
+    else:
+        raise ValueError, "uknown value type"
+    return val
+
+def check_val(param, val):
+    """
+    Check that value is in the correct range for given parameter.
+    Raises an exception if it is not.
+    """
+    val_type = BAI_data.PARAM_DICT[param]['type']
+
+    # check range if value is a number
+    if val_type in (BAI_data.BAI_INT,BAI_data.BAI_FLOAT):
+        if val <  BAI_data.PARAM_DICT[param]['min']:
+            raise ValueError, 'numerical parameter < minimum allowed value'
+        if val > BAI_data.PARAM_DICT[param]['max']:
+            raise ValueError, 'numerical parameter > maximum allowed value'
+
+    # Check range is value is a character
+    if val_type == BAI_data.BAI_CHR:
+        #print val, ord(BAI_data.PARAM_DICT[param]['min']), ord(BAI_data.PARAM_DICT[param]['max'])
+        #print val > ord(BAI_data.PARAM_DICT[param]['max'])
+        #print type(val), int(val)
+        if int(val) < ord(BAI_data.PARAM_DICT[param]['min']):
+            raise ValueError, 'character parameter < minimum allowed value'
+        if int(val) > ord(BAI_data.PARAM_DICT[param]['max']):
+            raise ValueError, 'character parameter > maximum allowed value'
+    return
+
 def num2param(num):
     """
     Convert parameter number to parameter name
@@ -443,27 +471,3 @@ def print_param_normal(num, param, cur_val):
     print prm_str,
     print ' '*(25 - len(prm_str)),
     print '%s'%(cur_val,)
-
-                
-# def print_param_doc(doc=False):
-#     """
-#     Prints BA-intellidrive parameters
-#     """
-#     print 
-#     for param in PARAM_LIST: 
-#         dict = PARAM_DICT[param]
-#         if doc:
-#             print '-'*80
-#             print dict['doc_str']
-#         print '  %s: %s'%('name', param)
-
-#         for k,v in dict.iteritems():
-#             if k == 'doc_str':
-#                 pass
-#             elif k == 'type':
-#                 print '  %s: %s'%(k,BAI_TYPE_DICT[v])
-#             else:
-#                 print '  %s: %s'%(k,v)
-#         print 
-
-# -------------------------------------------------------
