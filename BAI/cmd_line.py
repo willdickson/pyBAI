@@ -50,18 +50,21 @@ class BAI_Cmd_Line:
     def __init__(self):
     
         self.cmd_table = {
-            'help'            : self.help,
-            'status'          : self.print_status,
-            'param-from-file' : self.param_from_file,
-            'param-to-file'   : self.param_to_file,
-            'print-param'     : self.print_param,
-            'read-param'      : self.read_param,
-            'write-param'     : self.write_param,
-            'non-default'     : self.nondefault,
-            'toggle-mode'     : self.toggle_mode,
-            'reset'           : self.reset,
-            'save-to-flash'   : self.save_to_flash,
-            'set-to-default'  : self.set_to_default,
+            'find-baudrate'    : self.find_baudrate,
+            'help'             : self.help,
+            'status'           : self.print_status,
+            'param-from-file'  : self.param_from_file,
+            'param-to-file'    : self.param_to_file,
+            'print-param'      : self.print_param,
+            'read-param'       : self.read_param,
+            'write-param'      : self.write_param,
+            'non-default'      : self.nondefault,
+            'toggle-mode'      : self.toggle_mode,
+            'reset'            : self.reset,
+            'save-to-flash'    : self.save_to_flash,
+            'set-to-default'   : self.set_to_default,
+            'print-baudrates'  : self.print_baudrates,
+            'default-to-file'  : self.default_to_file,
             }
 
         self.help_table = {}
@@ -261,7 +264,7 @@ class BAI_Cmd_Line:
         parser.add_option('-t', '--timeout',
                                type = BAI_Cmd_Line.options_type['timeout'],
                                dest = 'timeout',
-                               help = 'set the serial port timeout',
+                               help = 'set the serial port timeout seconds (float)',
                                default = None)
 
         parser.add_option('-o', '--options',
@@ -290,15 +293,28 @@ class BAI_Cmd_Line:
             print "ERROR: too many arguments for command 'print-status'"
             sys.exit(1)
         address = self.options['address']
-        self.dev.print_status(address=address)
-
+        verbose = self.options['verbose']
+        try:
+            self.dev.print_status(address=address)
+        except Exception, err:
+            print "ERROR: reading from drive"
+            if verbose==True:
+                print err
+            
     def print_param(self):
         """ 
         Prints device parameters 
         """
         address = self.options['address']
-        self.dev.print_param(doc=self.options['verbose'],address=address)
-
+        verbose = self.options['verbose']
+        try:
+            self.dev.print_param(address=address, verbose=verbose)
+        except Exception, err:
+            print "ERROR: reading from drive"
+            if verbose == True:
+                print err
+            sys.exit(1)
+            
     def read_param(self):
         """
         Read value of specific device parameter
@@ -309,17 +325,31 @@ class BAI_Cmd_Line:
 
         if self.args[1].lower() == 'all':
             self.print_param()
-        else:
 
+        elif self.args[1].lower() == 'default':
+            ##########################################
+            print 'default option not implemented yet'
+            ##########################################
+
+        else:
             param = get_param_arg(self.args[1])
-                
+            address = self.options['address']
+            verbose = self.options['verbose']
+    
             # Get current parameter value
-            cur_val = self.dev.read_param(param)
+            try:
+                cur_val = self.dev.read_param(param, address=address)
+            except Exception, err:
+                print "ERROR: reading from drive"
+                if verbose == True:
+                    print err
+                sys.exit(1)
+                
             param_dict = BAI_data.PARAM_DICT[param]
             num = param_dict['num']
 
             # Display value
-            if self.options['verbose'] == True:
+            if verbose == True:
                 BAI.print_param_verbose(num,param,param_dict,cur_val)
             else:
                 BAI.print_param_normal(num,param,cur_val)
@@ -332,20 +362,30 @@ class BAI_Cmd_Line:
             print "ERROR: command 'set-param' requires parameter name/number and value"
             sys.exit(1)
 
+        address = self.options['address']
+        verbose = self.options['verbose']
+
         # Check/get parameter name from command line arguments
         param = get_param_arg(self.args[1])
         
         # Get value
         value = get_value_arg(param, self.args[2])
         
+        num = BAI_data.PARAM_DICT[param]['num']
+        if verbose == True:
+            print "writing:  PRM:%d:  %s  %s"%(num,param,value)
+            
+
         # Deal with special cases baudrate, mode, etc
         if param == 'baud rate':
-            pass
-        elif param == 'toggle mode':
-            pass
-        else:
-            address = self.options['address']
-            self.dev.write_param(param,value,address=address)
+            self.dev.set_baudrate(value, address=address)
+        else:            
+            try:
+                self.dev.write_param(param,value,address=address)
+            except Exception, err:
+                print "ERROR: writing to drive"
+                if verbose == True:
+                    print err
 
 
     def param_from_file(self):
@@ -357,38 +397,16 @@ class BAI_Cmd_Line:
             sys.exit(1)
             
         filename = self.args[1]
-        
-        # Read parameters from file
+        address = self.options['address']
+        verbose = self.options['verbose']
         try:
-            fid = open(filename,"r")
+            self.dev.param_from_file(filename, address=address, verbose=verbose)
         except IOError, err:
             print "ERROR: unable to open file, %s"%(err,)
             sys.exit(1)
-            
-        param_list = []
-        for i, line in enumerate(fid.readlines()):
-            line_split = line.split()
-            if len(line_split) != 3:
-                print "ERROR: incorrect data format on line %d"%(i,)
-                sys.exit(1)
-            param = line_split[1].replace('_',' ')
-            value = line_split[2]
-            param_list.append((param,value))
-        fid.close()
-        
-        
-        # Write parameters to drice
-        for param, value in param_list:
-
-            print 'writing: ', param
-            if param == 'baud rate':
-                # Need to becareful when setting baudrate
-                continue
-            else:
-                self.dev.write_param(param,value)
+        except Exception, err:
+            print "ERROR:", err
                 
-                    
-
     def param_to_file(self):
         """
         Read all parameters from device and write the to text file.
@@ -398,7 +416,7 @@ class BAI_Cmd_Line:
             sys.exit(1)
 
         filename = self.args[1]
-        
+    
         # Check if file exists
         if os.path.exists(filename):
             ans = raw_input("file: %s already exists - overwrite (Y)/N: "%(filename,))
@@ -407,50 +425,129 @@ class BAI_Cmd_Line:
                 sys.exit(1)
             else:
                 print 'overwriting: %s'%(filename,)
-                        
+       
         # Write parameters to output file
+        address = self.options['address']
+        verbose = self.options['verbose']
         try:
-            fid = open(filename,"w")
+            self.dev.param_to_file(filename, address=address, verbose=verbose)
         except IOError, err:
             print "ERROR: unable to open file, %s"%(err,)
             sys.exit(1)
-
-        address = self.options['address']
-        for num, param in BAI_data.NUM2PARAM_LIST:
-            param_dict = BAI_data.PARAM_DICT[param]
-            cur_val = self.dev.read_param(param,address=address)
-            param = param.replace(' ','_')
-            num_str = 'PRM:%d:'%(num,) 
-            prm_str = '%s'%(param,)
-            cur_str = '%s\n'%(cur_val,)
-            fid.write(num_str)
-            fid.write(' '*(9 - len(num_str)))
-            fid.write(prm_str)
-            fid.write(' '*(25 - len(prm_str)))
-            fid.write(cur_str)
-        fid.close()
+        except Exception, err:
+            print "ERROR:", err
+            sys.exit(1)
+        
                 
     def save_to_flash(self):
         """
         Save current parameter values to drives flash memory. Note, some
         parameters require a device reset in order to take effect.
         """
-        print "sorry, save-to-flash not yet implemented"
+        address = self.options['address']
+        verbose = self.options['verbose']
+        try:
+            self.dev.save_to_flash(address=address)
+        except Exception, err:
+            print "ERROR: saving parameters to flash"
+            if verbose == True:
+                print err
 
     def nondefault(self):
         """
         Print all parameters which are not set to the default value.
         """
-        self.dev.print_nondefault()
+        address = self.options['address']
+        verbose = self.options['verbose']
+        try:
+            self.dev.print_nondefault(address=address)
+        except Exception, err:
+            print "ERROR: reading from drive"
+            if verbose == True:
+                print err
 
     def toggle_mode(self):
-        print "sorry, toggle-mode not yet implemented"
-    
+        """
+        Toggle drive between local and remote mode.
+        """
+        print 
+        print BAI_Cmd_Line.toggle_mode_msg
+        print 
+        verbose = self.options['verbose']
+        try:
+            self.dev.toggle_mode()
+        except Exception, err:
+            print "ERROR: toggling mode"
+            if verbose == True:
+                print err
+
     def reset(self):
-        print "sorry, reset not yet implemented"
+        """
+        Reset servomotor drive
+        """
+        verbose = self.options['verbose']
+        address = self.options['address']
+        try:
+            self.dev.reset(address=address)
+        except Exception, err:
+            print "ERROR: reseting drive"
+            if verbose == True:
+                print err
 
     def set_to_default(self):
-        print "sorry, set-to-default not yet implemented"
+        """
+        Reset all drive parameters to their default values and save to
+        flash.
+        """
+        verbose = self.options['verbose']
+        address = self.options['address']
+        print 
+        print BAI_Cmd_Line.set_to_default_msg
+        print
+        ans = raw_input("Reset drive Y/(N):")
+        if ans.lower() != 'y':
+            print "exiting"
+            sys.exit(0)
+        try:
+            self.dev.set_to_default(address=address)
+        except Exception, err:
+            print "ERROR: setting parameters to default values"
+            if verbose == True:
+                print err
+        
+    def find_baudrate(self):
+        """
+        Try to determine baud rate using heuristic
+        """
+        verbose = self.options['verbose']
+        address = self.options['address']
+        print 'Finding baudrate - this may take a while'
+        flag, baudrate = self.dev.find_baudrate(address=address,verbose=verbose)
+        
+        if verbose == True:
+            print # Print space 
+
+        if flag==True:
+            print 'baudrate = %d'%(baudrate,)
+        else:
+            print "Cannot determine baudrate. The device may be in 'local' mode"
+            print "which disables RS232 communications. Try toggling the device"
+            print "to remote by using the 'toggle-mode' command"
+
+    def print_baudrates(self):
+        """
+        Print list of allowed baud rates
+        """
+        baudrates = BAI.allowed_baudrates()
+        print 'allowed baud rates:', 
+        for b in baudrates:
+            print b,
+        print
+
+    def default_to_file(self):
+        ##########################################
+        print 'default to file not implements yet'
+        ##########################################
         
     def help(self):
         print "sorry, help not yet implemented"
@@ -461,7 +558,7 @@ class BAI_Cmd_Line:
         'baudrate'      : 'int',
         'address'       : 'string',
         'port'          : 'string',
-        'timeout'       : 'int',
+        'timeout'       : 'float',
         'options_file'  : 'string',
         '.bai_options'  : 'string',
         }
@@ -479,7 +576,28 @@ class BAI_Cmd_Line:
     home_config_file = '.bai_options'
 
     
-    # Help strings --------------------------------------------------
+    # Help strings and messages ---------------------------------------
+    
+    toggle_mode_msg = """\
+Toggling Mode
+-------------
+
+WARNING: toggling from 'remote' to 'local mode' will disable RS232 
+communications. To re-enable communications toggle back to 'remote' 
+mode using the toggle-mode command.
+"""
+
+    set_to_default_msg = """\
+Setting all parameters to their default values
+----------------------------------------------
+
+WARNING: This should not be done with multiple drives in a daisy chain
+configuration.
+
+WARNING: This will place the drive into 'local mode' which will  disable 
+RS232  communications. To re-enable communications use the toggle-mode 
+command to place the drive back into  remote mode.
+"""
 
     usage = """%prog [OPTION] command <arg> 
 
@@ -487,10 +605,13 @@ class BAI_Cmd_Line:
 BA-Intellidrive PID servo controllers.
 
 Commands:
+
+ default-to-file  - write default parameters to file
  help             - get help 
  non-default      - print all nondefault device parameters
  param-from-file  - read all parameters from file and write them to drive
  param-to-file    - read all parameters from drive and write them to a file
+ print-baudrates  - print list allowed baud rates
  read-param       - read device parameter value
  reset            - reset drive
  save-to-flash    - save parameter values in flash memory
@@ -580,7 +701,7 @@ def tag_dict(input_dict, string):
 
 def untag_dict(input_dict):
     """
-    Remove tags from dictionary
+    Remove tags strings from dictionary
     """
     output_dict = {}
     for k,v in input_dict.iteritems():
@@ -588,6 +709,9 @@ def untag_dict(input_dict):
     return output_dict
 
 def cmd_line_main():
+    """
+    Command line interface entry point
+    """
     cmd_line = BAI_Cmd_Line()
     cmd_line.run()
     

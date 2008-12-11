@@ -65,11 +65,11 @@ if 0:
     # Test setting to defaults - be careful this will mess up
     # serial communications until you toggle the mode becuse it
     # puts the drive in local mode.
-    dev.set2default()
+    dev.set_to_default()
 
 if 0:
     # Test saving parameters to flash
     print 'saving parameters'
-    dev.save_param()
+    dev.save_to_flash()
 
 dev.close()

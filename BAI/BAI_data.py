@@ -1336,8 +1336,8 @@ PARAM_DICT = {
     'unit address' : {
         'num' : 94,
         'default' : 'A',
-        'max' : '0',
-        'min' : 'Z',
+        'max' : 'Z',
+        'min' : '0',
         'type' : BAI_CHR,
         'units' : None,
         'doc_str' : UNIT_ADDRESS_DOC_STR,

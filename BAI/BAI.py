@@ -40,7 +40,7 @@ import BAI_data
 
 # Constants
 DFLT_PORT = '/dev/ttyS0'
-DFLT_TIMEOUT = 2.0
+DFLT_TIMEOUT = 0.5
 DFLT_BAUDRATE = 9600
 DFLT_ADDRESS = 'A'
 DFLT_WRITE_SLEEP_T = 0.05
@@ -78,7 +78,6 @@ class BAI:
 
         if not self.comm.isOpen():
             raise IOError , 'unable to open port'
-        
         
         self.write_sleep_t = DFLT_WRITE_SLEEP_T
         self.write_sleep_cnt = DFLT_WRITE_SLEEP_CNT
@@ -169,15 +168,15 @@ class BAI:
             val = float(rtn_str)
         else:
             val = rtn_str
+        
         return val
 
-
-    def print_param(self,address=None, doc=False):
+    def print_param(self,address=None, verbose=False):
         """
         Print BAI parameters
         """
         print
-        if doc == False:
+        if verbose == False:
             print 'PRM:#     Parameter                  Value'
             print '---------------------------------------------------'
         else:
@@ -188,12 +187,11 @@ class BAI:
         for num, param in BAI_data.NUM2PARAM_LIST:
             param_dict = BAI_data.PARAM_DICT[param]
             cur_val = self.read_param(param,address=address)
-            if doc==True:
-                print_param_verbose(num,param,param_dict,cur_val)
-            else:
+            if verbose==False:
                 print_param_normal(num, param, cur_val)
-
-
+            else:
+                print_param_verbose(num,param,param_dict,cur_val)
+        
     def write_param(self,param,val,address=None, write_ack=True):
         """
         Write parameter function
@@ -240,7 +238,7 @@ class BAI:
             raise IOError, errmsg
         self.comm.read(nchar)
 
-    def save_param(self,address=None):
+    def save_to_flash(self,address=None):
         """
         Save parameters to flash
         """
@@ -264,7 +262,6 @@ class BAI:
             current_val = self.read_param(param,address=address)
             if current_val != default_val:
                 nondefault.append((num,param,current_val,default_val))
-            #nondefault.append((num,param,current_val,default_val))
         return nondefault
             
     def print_nondefault(self,address=None):
@@ -291,23 +288,25 @@ class BAI:
         print    
         
 
-    def set2default(self,address=None, save=True, toggle=True):
+    def set_to_default(self,address=None, save=True, toggle=False, verbose=False):
         """
         Set drive parameters to default values - don't do this with multiple
         drives in a daisey chain.
         """
         nondefault = self.get_nondefault(address=address)
-        for param, cval, dval in nondefault:
-            self.write_param(addr,param,dval)
+        for num, param, cval, dval in nondefault:
+            if verbose == True:
+                print "writing:", 
+                print_param_normal(num,param,dval)
+            self.write_param(param,dval,address=address)
             if param == 'unit address':
                 if address:
                     address = dval
                 else:
                     self.address=dval
-
         if save==True:
-            self.save_param()
-            default_baudrate = seld.param_dict['baud rate']['default']
+            self.save_to_flash()
+            default_baudrate = BAI_data.PARAM_DICT['baud rate']['default']
             self.comm.setBaudrate(default_baudrate)
             # Need to toggle back to remote mode
         if toggle==True:
@@ -317,7 +316,7 @@ class BAI:
         """
         Reset BAI unit
         """
-        if not address:
+        if address == None:
             address = self.address
 
         reset_chrs = BAI_data.SYS_CMD_DICT['reset unit']['cmd']
@@ -334,7 +333,7 @@ class BAI:
         self.comm.write(cmd)
         self.comm.readline()
 
-    def set_baudrate(self,baudrate, save_and_reset=True):
+    def set_baudrate(self, baudrate, address=None, save_and_reset=True):
         """
         Set the devices baud rate. By defualt, this routine saves the
         current set of parameters to flash and applies a reset to the
@@ -347,19 +346,152 @@ class BAI:
             raise ValueError, 'baudrate %d not allowed by BAI'%(baudrate,)
         if not baudrate in self.comm.BAUDRATES:
             raise ValueError, 'baudrate %d not allowed by serial'%(baudrate,)
-        self.write_param('baud rate', baudrate, write_ack=False)
+        self.write_param('baud rate', baudrate, address = address, write_ack=False)
         self.__get_write_ack()
         if save_and_reset==True:
-            dev.save_param()
-            dev.reset()
-            dev.comm.setBaudrate(baudrate)
+            self.save_to_flash()
+            self.reset()
+            self.comm.setBaudrate(baudrate)
+
+    def param_from_file(self, filename, address=None, verbose=False):
+        """
+        Read all parameters from input file and write them to drive. 
+        """
+        if address == None:
+            address = self.address
+        
+        # Read parameters from file
+        fid = open(filename,"r")
+        param_list = []
+        for i, line in enumerate(fid.readlines()):
+            line_split = line.split()
+            if len(line_split) != 3:
+                print "ERROR: incorrect data format on line %d"%(i,)
+                sys.exit(1)
+            param = line_split[1].replace('_',' ')
+            value = line_split[2]
+            param_list.append((param,value))
+        fid.close()
+
+        # Check parameters - before sending
+        for param, value in param_list:
+            value = cast_val(param,value)
+            check_val(param,value)
+        
+        # Write parameters to drice
+        for param, value in param_list:
+            num = BAI_data.PARAM_DICT[param]['num']
+            if verbose == True:
+                print 'writing:',
+                print_param_normal(num,param,value)
+            if param == 'baud rate':
+                ##########################################
+                # Not Done -Need to becareful when setting 
+                # baudrate. Maybe do it last. 
+                # 
+                # Also, may want to add flag for saving to
+                # flash as this is required for baudrate
+                # change to take effect.
+                ##########################################
+                continue
+            else:
+                self.write_param(param,value)
+
+
+    def param_to_file(self, filename, address=None, verbose=False):
+        """
+        Read all parameters from drive and write them to output file.
+        """
+        if address == None:
+            address = self.address
+
+        fid = open(filename,"w")        
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            param_dict = BAI_data.PARAM_DICT[param]
+            cur_val = self.read_param(param,address=address)
+            param = param.replace(' ','_')
+            num_str = 'PRM:%d:'%(num,) 
+            prm_str = '%s'%(param,)
+            cur_str = '%s\n'%(cur_val,)
+            fid.write(num_str)
+            fid.write(' '*(9 - len(num_str)))
+            fid.write(prm_str)
+            fid.write(' '*(25 - len(prm_str)))
+            fid.write(cur_str)
+            if verbose == True:
+                print_param_normal(num, param, cur_val)
+        fid.close()
+
+    def find_baudrate(self,address=None, verbose=False):
+        """
+        Try to find baudrate. This is a simple heuristic I came up
+        with by trial and error. It seems to work in most
+        circumstances. However, in some cases it may be necessary to
+        power cycle the drive and then retry this command. 
+        """
+        test = False
+        baudrates = list(allowed_baudrates())
+        baudrates.extend(baudrates)
+        
+        if verbose == True:
+            print '----------------------------------------'
+    
+        # Loop over all baudrates
+        for b in baudrates:    
+            if verbose == True:
+                trying_str = 'trying %d'%(b,) 
+                print trying_str,
+                print ' '*(12 - len(trying_str)),
+                sys.stdout.flush()
+
+            self.comm.setBaudrate(b)
+
+            try:
+                # Send dummy commands - this can fail we don't care
+                try:
+                    val = self.read_param('KP', address=address)
+                except:
+                    pass
+                try:
+                    val = self.get_status(address=address)
+                except:
+                    pass
                 
+                # Try reading every parameter - if this works then
+                # this is our buadrate
+                for num, param in BAI_data.NUM2PARAM_LIST:
+                    val = self.read_param(param,address=address)
+
+                # If we made it this far then this is our baudrate
+                test = True
+                if verbose == True:
+                    print 'success'
+                break
+
+            except Exception, err:
+                if verbose == True:
+                    print 'failed'
+                #print err
+                continue            
+        
+        # Return (True,baudrate) on success and (False,0) on failure 
+        if test == True:
+            return test, b
+        else:
+            return test, 0
+
     
     def close(self):
         self.comm.close()
         
 
 # ---------------------------------------------------------------
+def allowed_baudrates():
+    """
+    Return tuple of allowed baud rates
+    """
+    return BAI_data.PARAM_DICT['baud rate']['allowed']
+    
 def cast_val(param, val):
     """
     Cast value to correct type for given parameter. If cast fails the 
@@ -394,9 +526,6 @@ def check_val(param, val):
 
     # Check range is value is a character
     if val_type == BAI_data.BAI_CHR:
-        #print val, ord(BAI_data.PARAM_DICT[param]['min']), ord(BAI_data.PARAM_DICT[param]['max'])
-        #print val > ord(BAI_data.PARAM_DICT[param]['max'])
-        #print type(val), int(val)
         if int(val) < ord(BAI_data.PARAM_DICT[param]['min']):
             raise ValueError, 'character parameter < minimum allowed value'
         if int(val) > ord(BAI_data.PARAM_DICT[param]['max']):
