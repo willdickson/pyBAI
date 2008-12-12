@@ -45,6 +45,8 @@ DFLT_BAUDRATE = 9600
 DFLT_ADDRESS = 'A'
 DFLT_WRITE_SLEEP_T = 0.05
 DFLT_WRITE_SLEEP_CNT = 20
+RESET_SLEEP_T = 5.0
+SAVE_SLEEP_T = 3.0
 WRITE_RETURN_NCHAR = 3
 START_CHRS = [chr(3),chr(2)]
 STOP_CHRS = [chr(10)]
@@ -191,6 +193,20 @@ class BAI:
                 print_param_normal(num, param, cur_val)
             else:
                 print_param_verbose(num,param,param_dict,cur_val)
+
+
+    def print_default(self):
+        """
+        Print BAI default parameters
+        """
+        print
+        print 'PRM:#     Parameter                  Defualt Value'
+        print '---------------------------------------------------'
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            param_dict = BAI_data.PARAM_DICT[param]
+            dflt_val = param_dict['default']
+            print_param_normal(num, param, dflt_val)
+        
         
     def write_param(self,param,val,address=None, write_ack=True):
         """
@@ -249,6 +265,7 @@ class BAI:
         cmd =create_cmd(address, save_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
+        time.sleep(SAVE_SLEEP_T)
     
     def get_nondefault(self,address=None):
         """
@@ -296,7 +313,7 @@ class BAI:
         nondefault = self.get_nondefault(address=address)
         for num, param, cval, dval in nondefault:
             if verbose == True:
-                print "writing:", 
+                print "Writing:", 
                 print_param_normal(num,param,dval)
             self.write_param(param,dval,address=address)
             if param == 'unit address':
@@ -323,6 +340,7 @@ class BAI:
         cmd = create_cmd(address, reset_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
+        time.sleep(RESET_SLEEP_T)
 
     def toggle_mode(self):
         """
@@ -333,7 +351,7 @@ class BAI:
         self.comm.write(cmd)
         self.comm.readline()
 
-    def set_baudrate(self, baudrate, address=None, save_and_reset=True):
+    def set_baudrate(self, baudrate, address=None, save_and_reset=True, verbose=False):
         """
         Set the devices baud rate. By defualt, this routine saves the
         current set of parameters to flash and applies a reset to the
@@ -349,8 +367,17 @@ class BAI:
         self.write_param('baud rate', baudrate, address = address, write_ack=False)
         self.__get_write_ack()
         if save_and_reset==True:
+            if verbose == True:
+                print 'Saving to flash ...',
+                sys.stdout.flush()
             self.save_to_flash()
+            if verbose == True:
+                print 'done'
+                print 'Reseting ...',
+                sys.stdout.flush()
             self.reset()
+            if verbose == True:
+                print 'done'
             self.comm.setBaudrate(baudrate)
 
     def param_from_file(self, filename, address=None, verbose=False):
@@ -409,6 +436,8 @@ class BAI:
         for num, param in BAI_data.NUM2PARAM_LIST:
             param_dict = BAI_data.PARAM_DICT[param]
             cur_val = self.read_param(param,address=address)
+            write_param_to_file(fid,num,param,cur_val)
+
             param = param.replace(' ','_')
             num_str = 'PRM:%d:'%(num,) 
             prm_str = '%s'%(param,)
@@ -422,12 +451,32 @@ class BAI:
                 print_param_normal(num, param, cur_val)
         fid.close()
 
+    def default_to_file(self, filename, verbose=False):
+        """
+        Write all default parameters to output file
+        """
+        fid = open(filename,"w")
+        for num, param in BAI_data.NUM2PARAM_LIST:
+            dflt_val = BAI_data.PARAM_DICT[param]['default']
+            write_param_to_file(fid,num,param,dflt_val)
+            if verbose == True:
+                print_param_normal(num, param, dflt_val)
+        
+        fid.close()
+
     def find_baudrate(self,address=None, verbose=False):
         """
         Try to find baudrate. This is a simple heuristic I came up
-        with by trial and error. It seems to work in most
-        circumstances. However, in some cases it may be necessary to
-        power cycle the drive and then retry this command. 
+        with by trial and error. It is a bit kludgey, butt seems to
+        work in most circumstances. However, in some cases it may be
+        necessary to power cycle the drive and then retry this
+        command.
+
+        Baiscally, this command tries to figure out the baud rate of
+        the device by looping over each allowed baud rate and trying
+        to read the devices parameters. If for a given baud rate the
+        responses from the device take a recognisable form then it
+        assumes that this must be the correct baud rate. 
         """
         test = False
         baudrates = list(allowed_baudrates())
@@ -447,7 +496,9 @@ class BAI:
             self.comm.setBaudrate(b)
 
             try:
-                # Send dummy commands - this can fail we don't care
+                # Send dummy commands - these can fail we don't care
+                # I'm not really sure why doing this help, but it
+                # does.
                 try:
                     val = self.read_param('KP', address=address)
                 except:
@@ -472,6 +523,7 @@ class BAI:
                 if verbose == True:
                     print 'failed'
                 #print err
+                time.sleep(RESET_SLEEP_T)
                 continue            
         
         # Return (True,baudrate) on success and (False,0) on failure 
@@ -486,6 +538,20 @@ class BAI:
         
 
 # ---------------------------------------------------------------
+def write_param_to_file(fid,num,param,val):
+    """
+    Print parameters and value to file specified by file id. 
+    """
+    param = param.replace(' ','_')
+    num_str = 'PRM:%d:'%(num,) 
+    prm_str = '%s'%(param,)
+    val_str = '%s\n'%(val,)
+    fid.write(num_str)
+    fid.write(' '*(9 - len(num_str)))
+    fid.write(prm_str)
+    fid.write(' '*(25 - len(prm_str)))
+    fid.write(val_str)
+
 def allowed_baudrates():
     """
     Return tuple of allowed baud rates

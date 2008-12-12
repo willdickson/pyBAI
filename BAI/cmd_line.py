@@ -50,21 +50,19 @@ class BAI_Cmd_Line:
     def __init__(self):
     
         self.cmd_table = {
+            'default-to-file'  : self.default_to_file,
             'find-baudrate'    : self.find_baudrate,
             'help'             : self.help,
-            'status'           : self.print_status,
             'param-from-file'  : self.param_from_file,
             'param-to-file'    : self.param_to_file,
-            'print-param'      : self.print_param,
+            'print-baudrates'  : self.print_baudrates,
             'read-param'       : self.read_param,
-            'write-param'      : self.write_param,
-            'non-default'      : self.nondefault,
-            'toggle-mode'      : self.toggle_mode,
             'reset'            : self.reset,
             'save-to-flash'    : self.save_to_flash,
-            'set-to-default'   : self.set_to_default,
-            'print-baudrates'  : self.print_baudrates,
-            'default-to-file'  : self.default_to_file,
+            'set-baudrate'     : self.set_baudrate,
+            'status'           : self.print_status,
+            'toggle-mode'      : self.toggle_mode,
+            'write-param'      : self.write_param,
             }
 
         self.help_table = {}
@@ -314,11 +312,32 @@ class BAI_Cmd_Line:
             if verbose == True:
                 print err
             sys.exit(1)
+
+    def print_nondefault(self):
+        """
+        Print all parameters which are not set to the default value.
+        """
+        address = self.options['address']
+        verbose = self.options['verbose']
+        try:
+            self.dev.print_nondefault(address=address)
+        except Exception, err:
+            print "ERROR: reading from drive"
+            if verbose == True:
+                print err
+
+    def print_default(self):
+        """
+        Print default parameter values
+        """
+        self.dev.print_default()
             
     def read_param(self):
         """
         Read value of specific device parameter
         """
+        address = self.options['address']
+        verbose = self.options['verbose']
         if len(self.args) != 2:
             print "ERROR: command 'get-param' requires parameter name or number"
             sys.exit(1)
@@ -327,14 +346,14 @@ class BAI_Cmd_Line:
             self.print_param()
 
         elif self.args[1].lower() == 'default':
-            ##########################################
-            print 'default option not implemented yet'
-            ##########################################
+            self.print_default()
+        
+        elif self.args[1].lower() == 'nondefault':
+            self.print_nondefault()
 
         else:
+            
             param = get_param_arg(self.args[1])
-            address = self.options['address']
-            verbose = self.options['verbose']
     
             # Get current parameter value
             try:
@@ -358,35 +377,54 @@ class BAI_Cmd_Line:
         """
         Write value of specified device parameter
         """
-        if len(self.args) != 3:
-            print "ERROR: command 'set-param' requires parameter name/number and value"
+        if len(self.args) < 2:
+            print "ERROR: command 'write-param' requires at least one argument"
+            sys.exit(1)
+        
+        if len(self.args) != 3 and self.args[1].lower() != 'default':
+            print "ERROR: command 'write-param' requires either parameter name/number" 
+            print "and value or 'default' as argument"
             sys.exit(1)
 
         address = self.options['address']
         verbose = self.options['verbose']
+        
+        if self.args[1].lower() == 'default':
+            self.set_to_default()
+            
+        else:
 
-        # Check/get parameter name from command line arguments
-        param = get_param_arg(self.args[1])
+            # Check/get parameter name from command line arguments
+            param = get_param_arg(self.args[1])
         
-        # Get value
-        value = get_value_arg(param, self.args[2])
+            # Get value
+            value = get_value_arg(param, self.args[2])
         
-        num = BAI_data.PARAM_DICT[param]['num']
-        if verbose == True:
-            print "writing:  PRM:%d:  %s  %s"%(num,param,value)
+            num = BAI_data.PARAM_DICT[param]['num']
+            if verbose == True:
+                print "writing:  PRM:%d:  %s  %s"%(num,param,value)
             
 
-        # Deal with special cases baudrate, mode, etc
-        if param == 'baud rate':
-            self.dev.set_baudrate(value, address=address)
-        else:            
-            try:
-                self.dev.write_param(param,value,address=address)
-            except Exception, err:
-                print "ERROR: writing to drive"
-                if verbose == True:
-                    print err
-
+            # Deal with special cases baudrate, mode, etc
+            if param == 'baud rate':
+                try:
+                    self.dev.set_baudrate(value, 
+                                          address=address, 
+                                          save_and_reset=False,
+                                          verbose=verbose)
+                    print 
+                    print BAI_Cmd_Line.write_baudrate_msg
+                except Exception, err:
+                    print "ERROR: setting baudrate"
+                    if verbose == True:
+                        print err
+            else:            
+                try:
+                    self.dev.write_param(param,value,address=address)
+                except Exception, err:
+                    print "ERROR: writing to drive"
+                    if verbose == True:
+                        print err
 
     def param_from_file(self):
         """
@@ -416,15 +454,7 @@ class BAI_Cmd_Line:
             sys.exit(1)
 
         filename = self.args[1]
-    
-        # Check if file exists
-        if os.path.exists(filename):
-            ans = raw_input("file: %s already exists - overwrite (Y)/N: "%(filename,))
-            if not ((ans == 'Y') or (ans == '')):
-                print 'quiting'
-                sys.exit(1)
-            else:
-                print 'overwriting: %s'%(filename,)
+        check_if_file_exists(filename)
        
         # Write parameters to output file
         address = self.options['address']
@@ -437,7 +467,25 @@ class BAI_Cmd_Line:
         except Exception, err:
             print "ERROR:", err
             sys.exit(1)
-        
+
+    def default_to_file(self):
+        """
+        Write all device default parameter setting to output file
+        """
+        if len(self.args) != 2:
+            print "ERROR: commnd 'default-to-file' requires output filename"
+            sys.exit(1)
+            
+        filename = self.args[1]
+        check_if_file_exists(filename)
+
+        verbose = self.options['verbose']
+        try:
+            self.dev.default_to_file(filename, verbose=verbose)
+        except IOError, err:
+            print "ERROR: unable to open file, %s"%(err,)
+        except Exception, err:
+            print "ERROR:", err
                 
     def save_to_flash(self):
         """
@@ -450,19 +498,6 @@ class BAI_Cmd_Line:
             self.dev.save_to_flash(address=address)
         except Exception, err:
             print "ERROR: saving parameters to flash"
-            if verbose == True:
-                print err
-
-    def nondefault(self):
-        """
-        Print all parameters which are not set to the default value.
-        """
-        address = self.options['address']
-        verbose = self.options['verbose']
-        try:
-            self.dev.print_nondefault(address=address)
-        except Exception, err:
-            print "ERROR: reading from drive"
             if verbose == True:
                 print err
 
@@ -544,10 +579,40 @@ class BAI_Cmd_Line:
             print b,
         print
 
-    def default_to_file(self):
-        ##########################################
-        print 'default to file not implements yet'
-        ##########################################
+    def set_baudrate(self):
+        """
+        Set the devices baudrate. Performs an implicit save to flash
+        """
+        if len(self.args) < 2:
+            print "ERROR: command 'set-baudrate' requires baud rate argument"
+            sys.exit(1)
+        
+        verbose = self.options['verbose']
+        address = self.options['address']
+
+        baudrate = get_value_arg('baud rate',self.args[1])
+        if not baudrate in BAI_data.PARAM_DICT['baud rate']['allowed']:
+            print "ERROR: baud rate %d not allowed"%(baudrate,)
+            sys.exit(1)
+
+        print
+        print BAI_Cmd_Line.set_baudrate_msg
+        ans = raw_input("Continue (Y)/N:")
+        ans = ans.lower()
+        if not (ans == 'y' or ans == ''):
+            print "Quiting"
+            sys.exit(1)
+
+        if verbose==True:
+            print 'Setting baud rate = %d'%(baudrate,)
+
+        try:
+            self.dev.set_baudrate(baudrate, address=address, verbose=verbose)
+        except Exception, err:
+            print "ERROR: setting baudrate"
+            if verbose == True:
+                print err
+        
         
     def help(self):
         print "sorry, help not yet implemented"
@@ -599,6 +664,17 @@ RS232  communications. To re-enable communications use the toggle-mode
 command to place the drive back into  remote mode.
 """
 
+    write_baudrate_msg = """\ 
+WARNING: baudrate parameter changed. In order for the change in
+baudrate to take effect you will need to save parameters to flash
+memory and reset the drive.
+"""
+    set_baudrate_msg = """\
+
+WARNING: setting the baud rate. All current parameters will be saved
+to flash memory and the drive will be reset.
+"""
+
     usage = """%prog [OPTION] command <arg> 
 
 %prog is a command line utility for RS232 communication with Aerotech
@@ -606,20 +682,30 @@ BA-Intellidrive PID servo controllers.
 
 Commands:
 
- default-to-file  - write default parameters to file
- help             - get help 
- non-default      - print all nondefault device parameters
- param-from-file  - read all parameters from file and write them to drive
- param-to-file    - read all parameters from drive and write them to a file
- print-baudrates  - print list allowed baud rates
- read-param       - read device parameter value
- reset            - reset drive
- save-to-flash    - save parameter values in flash memory
- status           - print device status information
- toggle-mode      - toggle mode (local/remote)
- write-param      - set device parameter
+ BAI Status/Control 
+   reset             - reset drive
+   status            - print device status information
 
+ Read/Write Parameters
+   read-param        - read device parameter values 
+   write-param       - set device parameter values
+   save-to-flash     - save parameter values in flash memory
 
+ File Read/Write Operations
+   default-to-file   - write default parameters to file  
+   param-to-file     - read all parameters from drive and write them to a file
+   param-from-file   - read all parameters from file and write them to drive
+ 
+ Serial communication
+   find-baudrate     - try to determine the devices current baud rate 
+   print-baudrates   - print list allowed baud rates
+   set-baudrate      - set the device's baud rate
+   toggle-mode       - toggle mode (local/remote)
+  
+ Help commands
+   help              - get help  
+
+ 
 * To get help for a specific command type: %prog help COMMAND
 """
 
@@ -629,6 +715,21 @@ Commands:
 # ----------------------------------------------------------------------
 # Utility functions
 
+def check_if_file_exists(filename):
+    """
+    Checks if file exists and if it does asks if it OK to overwrite
+    file. Unless answer is yes the program  exits. 
+    """
+    # Check if file exists
+    if os.path.exists(filename):
+        ans = raw_input("file: %s already exists - overwrite (Y)/N: "%(filename,))
+        ans = ans.lower()
+        if not ((ans == 'y') or (ans == '')):
+            print 'quiting'
+            sys.exit(1)
+        else:
+            print 'overwriting: %s'%(filename,)
+    
 def get_value_arg(param,arg):
     """
     Utility function which converts command line argument to parameter
@@ -672,6 +773,11 @@ def get_param_arg(arg):
     if possible. If not it prints the appropriate error message and
     exits. 
     """
+    arg = arg.lower()
+    # Special cases allow 'baudrate' and 'baud rate'
+    if arg == 'baudrate':
+        arg = 'baud rate'
+
     if BAI_data.PARAM_DICT.has_key(arg):
         param = arg
     else:
