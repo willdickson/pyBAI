@@ -382,7 +382,9 @@ class BAI:
 
     def param_from_file(self, filename, address=None, verbose=False):
         """
-        Read all parameters from input file and write them to drive. 
+        Read all parameters from input file and write them to drive.
+        
+        Returns baudrate_flag = True if baudrate has changes
         """
         if address == None:
             address = self.address
@@ -404,26 +406,25 @@ class BAI:
         for param, value in param_list:
             value = cast_val(param,value)
             check_val(param,value)
-        
+
         # Write parameters to drice
+        baudrate_changed = False
         for param, value in param_list:
             num = BAI_data.PARAM_DICT[param]['num']
             if verbose == True:
                 print 'writing:',
                 print_param_normal(num,param,value)
+              
             if param == 'baud rate':
-                ##########################################
-                # Not Done -Need to becareful when setting 
-                # baudrate. Maybe do it last. 
-                # 
-                # Also, may want to add flag for saving to
-                # flash as this is required for baudrate
-                # change to take effect.
-                ##########################################
-                continue
-            else:
-                self.write_param(param,value)
-
+                baudrate_old = self.read_param('baud rate', address=address)
+                if cast_val(param,value) != baudrate_old:
+                    baudrate_changed = True
+                else:
+                    baudrate_changed = False
+                
+            self.write_param(param,value, address=address)
+        
+        return baudrate_changed
 
     def param_to_file(self, filename, address=None, verbose=False):
         """
@@ -438,15 +439,6 @@ class BAI:
             cur_val = self.read_param(param,address=address)
             write_param_to_file(fid,num,param,cur_val)
 
-            param = param.replace(' ','_')
-            num_str = 'PRM:%d:'%(num,) 
-            prm_str = '%s'%(param,)
-            cur_str = '%s\n'%(cur_val,)
-            fid.write(num_str)
-            fid.write(' '*(9 - len(num_str)))
-            fid.write(prm_str)
-            fid.write(' '*(25 - len(prm_str)))
-            fid.write(cur_str)
             if verbose == True:
                 print_param_normal(num, param, cur_val)
         fid.close()

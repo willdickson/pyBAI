@@ -438,7 +438,12 @@ class BAI_Cmd_Line:
         address = self.options['address']
         verbose = self.options['verbose']
         try:
-            self.dev.param_from_file(filename, address=address, verbose=verbose)
+            baudrate_flag = self.dev.param_from_file(filename, 
+                                                     address=address, 
+                                                     verbose=verbose)
+            if baudrate_flag == True:
+                print
+                print BAI_Cmd_Line.write_baudrate_msg
         except IOError, err:
             print "ERROR: unable to open file, %s"%(err,)
             sys.exit(1)
@@ -459,8 +464,9 @@ class BAI_Cmd_Line:
         # Write parameters to output file
         address = self.options['address']
         verbose = self.options['verbose']
+
         try:
-            self.dev.param_to_file(filename, address=address, verbose=verbose)
+            self.dev.param_to_file(filename,address=address,verbose=verbose)
         except IOError, err:
             print "ERROR: unable to open file, %s"%(err,)
             sys.exit(1)
@@ -539,7 +545,7 @@ class BAI_Cmd_Line:
         print 
         print BAI_Cmd_Line.set_to_default_msg
         print
-        ans = raw_input("Reset drive Y/(N):")
+        ans = raw_input("Set to defaults? Y/(N):")
         if ans.lower() != 'y':
             print "exiting"
             sys.exit(0)
@@ -664,13 +670,12 @@ RS232  communications. To re-enable communications use the toggle-mode
 command to place the drive back into  remote mode.
 """
 
-    write_baudrate_msg = """\ 
+    write_baudrate_msg = """\
 WARNING: baudrate parameter changed. In order for the change in
 baudrate to take effect you will need to save parameters to flash
 memory and reset the drive.
 """
     set_baudrate_msg = """\
-
 WARNING: setting the baud rate. All current parameters will be saved
 to flash memory and the drive will be reset.
 """
@@ -773,7 +778,6 @@ def get_param_arg(arg):
     if possible. If not it prints the appropriate error message and
     exits. 
     """
-    arg = arg.lower()
     # Special cases allow 'baudrate' and 'baud rate'
     if arg == 'baudrate':
         arg = 'baud rate'
