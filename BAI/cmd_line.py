@@ -65,7 +65,23 @@ class BAI_Cmd_Line:
             'write-param'      : self.write_param,
             }
 
-        self.help_table = {}
+        self.help_table = {
+            'default-to-file'  : BAI_Cmd_Line.default_to_file_help,
+            'find-baudrate'    : BAI_Cmd_Line.find_baudrate_help,
+            'help'             : BAI_Cmd_Line.help_help,
+            'param-from-file'  : BAI_Cmd_Line.param_from_file_help,
+            'param-to-file'    : BAI_Cmd_Line.param_to_file_help,
+            'print-baudrates'  : BAI_Cmd_Line.print_baudrates_help,
+            'read-param'       : BAI_Cmd_Line.read_param_help,
+            'reset'            : BAI_Cmd_Line.reset_help,
+            'save-to-flash'    : BAI_Cmd_Line.save_to_flash_help,
+            'set-baudrate'     : BAI_Cmd_Line.set_baudrate_help,
+            'status'           : BAI_Cmd_Line.status_help,
+            'toggle-mode'      : BAI_Cmd_Line.toggle_mode_help,
+            'write-param'      : BAI_Cmd_Line.write_param_help,
+            }
+
+        self.progname = os.path.split(sys.argv[0])[1]
 
         # Parse options from command line, options file, and .bai_options file
         self.options_dflt = BAI_Cmd_Line.options_default
@@ -621,7 +637,23 @@ class BAI_Cmd_Line:
         
         
     def help(self):
-        print "sorry, help not yet implemented"
+        if len(self.args)==1:
+            self.parser.print_help()
+
+        elif len(self.args)==2:
+            cmd_str = self.args[1].lower()
+            try:
+                help_str = self.help_table[cmd_str]
+            except KeyError:
+                print "ERROR: can't get help unkown command"
+                sys.exit(1)
+            
+            print help_str.replace('%prog', self.progname)
+
+        else:
+            print "ERROR: too many arguments for command help"
+            sys.exit(1)
+
         
 
     options_type = {
@@ -680,7 +712,7 @@ WARNING: setting the baud rate. All current parameters will be saved
 to flash memory and the drive will be reset.
 """
 
-    usage = """%prog [OPTION] command <arg> 
+    usage = """%prog [OPTION] command [arg0, ...] 
 
 %prog is a command line utility for RS232 communication with Aerotech
 BA-Intellidrive PID servo controllers.
@@ -712,6 +744,220 @@ Commands:
 
  
 * To get help for a specific command type: %prog help COMMAND
+"""
+
+    reset_help = """\
+command: reset
+
+usage: %prog [options] reset
+
+Resets the BAI servomotor drive.
+"""
+
+    status_help = """\
+command: status
+
+usage: %prog [options] status
+
+Prints all status bits of the BAI drive. These bits allow the user to
+interrogate the unit to determine the source of an error.
+"""
+
+    read_param_help = """\
+command: read-param
+
+usage: %prog [options] read-param PARAM
+
+Reads parameter values from the BAI drive. PARAM, can be a parameter
+name, a parameter number, 'all', 'default', or 'nondefault'. Note, If
+the name for the parameter, PARAM, contains spaces then it must be
+placed in quotes.
+
+ If PARAM == [parameter string or number] then
+
+   The value for this parameter is read from the BAI drive and 
+   displayed.
+
+ If PARAM == all then
+
+   The values for all parameters are read from the BAI drive and
+   displayed.
+
+ If PARAM == default then
+
+   The default value for all parameters is displayed.
+
+ If PARAM == nondefault then
+
+   The values for all parameters are read from the BAI drive and
+   compared to their default values. Those not equal to the default
+   value are displayed.
+
+In verbose mode addition information for each parameter such as the
+minimum, maximum and default values are displayed along with a
+documentation string.
+
+Examples:
+ 
+ # Read parameter KP
+ %prog read-param KP
+ 
+ # Read parameter 'velocity trap'
+ %prog read-param 'velocity trap'
+
+ # Read all parameters
+ %prog read-param all
+
+ # Read default parameter values
+ %prog read-param default
+
+ # Read all parameters and print those not equal to the default 
+ %prog read-param nondefault
+"""
+    
+    write_param_help = """\
+command: write-param
+
+usage: %prog [options] write-param PARAM VALUE
+
+Writes parameter values to the BAI drive. PARAM can be a parameter
+name, a parameter number or 'default'. VALUE is the desired value for
+the given parameter. Note, If the name for the parameter, PARAM,
+contains spaces then it must be placed in quotes.
+
+ If PARAM == [parameter name or number] then
+   
+   The value for this parameter is written to the drive.
+
+ If PARAM == default then
+
+   The default value for all parameters is written to the drive.
+
+Note, if the baudrate is changed a save-to-flash and a drive reset is
+required before this will take effect.
+
+Examples:
+ 
+ # Set parameter 'KP' to 700000
+ %prog write-param KP 700000
+
+ # Set parameter #10 (velocity trap) to 200
+ %prog write-param 10 200
+
+ # Set parameter 'position error trap' to 10
+ %prog write-param 'position error trap' 10
+
+ # Set all parameters to default value
+ %prog write-param default
+"""
+    
+    save_to_flash_help = """\
+command: save-to-flash
+
+usage: %prog [options] save-to-flash
+
+Save current parameters to the drives flash memory. This must be done
+for the changes to become nonvolatile. Note, some parameters require a
+save-to-flash and/or a reset in order to take effect,
+"""
+
+    default_to_file_help = """\
+command: default-to-file
+
+usage: %prog [options] default-to-file FILENAME
+
+Write default values of all parameters to output file, FILENAME.
+
+Examples:
+ 
+ # Write default drive parameters to default.txt
+ %prog default-to-file default.txt
+"""
+    
+    param_to_file_help = """\
+command: param-to-file
+
+usage: %prog [options] param-to-file FILENAME
+
+Read the current value of all parameters from the BAI drive and write
+them to the output file, FILENAME.
+
+Examples:
+ 
+ # Write drive parameters to file myparam.txt
+ %prog param-to-file myparam.txt
+"""
+
+    param_from_file_help = """\
+command: param-from-file
+
+usage: %prog [options] param-from-file FILENAME
+
+Read the values of the drive parameters from the input file, FILENAME,
+and write them the the BAI drive. Note, if the baud rate is changed a
+save-to-flash and a drive reset is required before this will take
+effect.
+
+Examples:
+
+ # Set drive parameters from file myparam.txt
+ %prog param-from-file myparam.txt 
+                                   
+"""
+    
+    find_baudrate_help = """\
+command: find-baudrate
+
+usage: %prog [options] find-baudrate
+
+Tries to find the current baud rate setting of the of the BAI
+drive. Note, This command will fail if the device in local mode.
+"""
+    
+    print_baudrates_help = """\
+command: print-baudrates
+
+usage: %prog [options] print-baudrates
+
+Print the list allowed baud rates of the BAI drive.
+"""
+    
+    set_baudrate_help = """\
+command: set-baudrate
+
+usage: %prog [options] set-baudrate BAUDRATE
+
+Set the BAI drive's baud rate. Note, this command will save the
+current drive parameters to flash and reset the drive as this is
+required for the change in baud rate to take effect.
+
+Examples:
+ %prog set-baudrate 9600 # set the baud rate to 9600
+"""
+    
+    toggle_mode_help = """\
+command: toggle-mode
+
+usage: %prog [options] toggle-mode
+
+Toggles the BAI drive between local and remote mode. Note, toggling
+from 'remote' to 'local mode' will disable RS232 communications. To
+re-enable communications toggle back to 'remote' mode using the
+toggle-mode command.
+"""
+    
+    help_help = """\
+command: help
+
+usage: %prog [options] help [COMMAND]
+
+Prints help information. If the optional argument COMMAND is not given
+then general usage information for the %prog is displayed. If a specific 
+command, COMMAND, is given then help for that command will be displayed.
+
+Examples:
+ %prog help         # prints general usage information
+ %prog help status  # prints help for the status command 
 """
 
 # End BAI_Cmd_Line -----------------------------------------------------

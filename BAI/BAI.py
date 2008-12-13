@@ -47,6 +47,7 @@ DFLT_WRITE_SLEEP_T = 0.05
 DFLT_WRITE_SLEEP_CNT = 20
 RESET_SLEEP_T = 5.0
 SAVE_SLEEP_T = 3.0
+TOGGLE_MODE_SLEEP_T = 5.0
 WRITE_RETURN_NCHAR = 3
 START_CHRS = [chr(3),chr(2)]
 STOP_CHRS = [chr(10)]
@@ -350,6 +351,7 @@ class BAI:
         cmd = create_cmd(None, toggle_chrs, ())
         self.comm.write(cmd)
         self.comm.readline()
+        time.sleep(TOGGLE_MODE_SLEEP_T)
 
     def set_baudrate(self, baudrate, address=None, save_and_reset=True, verbose=False):
         """
