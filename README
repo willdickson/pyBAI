@@ -1,11 +1,15 @@
 pyBAI 
-=== 
+===== 
 
 Provides RS232 communications with Aerotech BA-Intellidrive PID servo
-controllers.
+controllers. This package does not implement the full serial
+interface, but rather just the subset required to: read and write the
+drive parameters, save the parameters to flash, read status
+information, reset the drive, and toggle the communications mode. This
+was sufficient for my purposes. I did lay the ground work for
+implementing the rest of the serial interface, but I don't at the
+moment I don't have the time (or the need) to implement it.
 
-Note: This package is currently being developed and is not yet fully
-functional.
 
 Installation
 
