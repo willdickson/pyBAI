@@ -998,7 +998,7 @@ def get_value_arg(param,arg):
         
     # Cast value to approriate type
     try:
-        val = BAI.cast_val(param,arg)
+        val = cast_val(param,arg)
     except KeyError:
         print "ERROR: uknown parameter, '%s'"%(param,)
         sys.exit(1)
@@ -1010,7 +1010,7 @@ def get_value_arg(param,arg):
 
     # Check ranges
     try:
-        BAI.check_val(param,val)
+        BAI.check_val(param,str(ord(val)))
     except ValueError, err:
         print "ERROR: %s %s"%(param,err,)
         sys.exit(1)
@@ -1072,6 +1072,23 @@ def cmd_line_main():
     cmd_line.run()
     
 
+def cast_val(param, val):
+    """
+    Cast value to correct type for given parameter. If cast fails the 
+    appropriate exception is called.
+    """
+    val_type = BAI_data.PARAM_DICT[param]['type']
+    if val_type == BAI_data.BAI_INT:
+        val = int(val)
+    elif val_type == BAI_data.BAI_FLOAT:
+        val = float(val)
+    elif val_type == BAI_data.BAI_STR:
+        val = str(val)
+    elif val_type == BAI_data.BAI_CHR:
+        val = str(val)
+    else:
+        raise ValueError, "uknown value type"
+    return val
 # --------------------------------------------------------------
 if __name__ == '__main__':
 
