@@ -1008,12 +1008,12 @@ def get_value_arg(param,arg):
         print "ERROR: unable to cast parameter to type %s"%(val_type_str,)
         sys.exit(1)
 
-    # Check ranges
-    try:
-        BAI.check_val(param,str(ord(val)))
-    except ValueError, err:
-        print "ERROR: %s %s"%(param,err,)
-        sys.exit(1)
+#    # Check ranges
+#    try:
+#        BAI.check_val(param,val)
+#    except ValueError, err:
+#        print "ERROR: %s %s"%(param,err,)
+#        sys.exit(1)
 
     return val
         
