@@ -63,6 +63,7 @@ class BAI_Cmd_Line:
             'status'           : self.print_status,
             'toggle-mode'      : self.toggle_mode,
             'write-param'      : self.write_param,
+            'get-pos'          : self.get_pos,
             }
 
         self.help_table = {
@@ -79,6 +80,7 @@ class BAI_Cmd_Line:
             'status'           : BAI_Cmd_Line.status_help,
             'toggle-mode'      : BAI_Cmd_Line.toggle_mode_help,
             'write-param'      : BAI_Cmd_Line.write_param_help,
+            'get-pos'          : BAI_Cmd_Line.get_pos_help,
             }
 
         self.progname = os.path.split(sys.argv[0])[1]
@@ -347,6 +349,10 @@ class BAI_Cmd_Line:
         Print default parameter values
         """
         self.dev.print_default()
+
+    def get_pos(self):
+        pos = self.dev.get_position()
+        print pos
             
     def read_param(self):
         """
@@ -958,6 +964,14 @@ command, COMMAND, is given then help for that command will be displayed.
 Examples:
  %prog help         # prints general usage information
  %prog help status  # prints help for the status command 
+"""
+
+    get_pos_help = """\
+command: get-pos
+
+usage: %prog [options] get-pos
+
+Returns the current motor position
 """
 
 # End BAI_Cmd_Line -----------------------------------------------------

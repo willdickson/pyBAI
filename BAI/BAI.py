@@ -93,6 +93,21 @@ class BAI:
             return True
         else:
             return self.comm.open()
+
+    def get_position(self,address=None):
+        if not address:
+            address = self.address
+            
+        # Create serial command and send to BAI
+        status_chrs = BAI_data.SYS_CMD_DICT['print axis position']['cmd']
+        cmd = create_cmd(address, status_chrs,())
+        self.comm.write(cmd)
+
+        # Read and parse return string
+        rtn_str = self.comm.readline()
+        rtn_str = rtn_str[len(START_CHRS)+1:-len(STOP_CHRS)]
+        pos_int = int(rtn_str)
+        return pos_int
     
     def get_status(self,address=None):
         """
