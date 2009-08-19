@@ -18,21 +18,17 @@ if 0:
 if 0:
     dev.set_baudrate(38400)
 
-if 0:
-    # Display all parameters
-    print_param_doc(doc=False)
 
-
-if 0:
+if 1:
     # Test writing a parameter
     #dev.write_param('KP', 750000)
     #dev.write_param('KI', 35000)
-    dev.write_param('KPOS', 15000)
+    #dev.write_param('KPOS', 15000)
 
     #dev.write_param('KP', 0)
     #dev.write_param('KI', 0)
     #dev.write_param('KPOS', 0)
-    #dev.write_param('unit address', 'A')
+    dev.write_param('unit address', 'A')
     #dev.write_param('daisy chain', 1)
     #dev.write_param('negative software limit', -2147483600)
     #dev.write_param('positive software limit', 214748360)
@@ -43,7 +39,7 @@ if 0:
     print 'reseting unit'
     dev.reset()
 
-if 1:
+if 0:
     # Test reading parameters
     dev.print_param(doc=False)
 

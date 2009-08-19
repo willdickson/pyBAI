@@ -81,6 +81,10 @@ class BAI:
 
         if not self.comm.isOpen():
             raise IOError , 'unable to open port'
+
+        #print 'flushing input and output buffers'
+        #self.comm.flushInput()
+        #self.comm.flushOutput()
         
         self.write_sleep_t = DFLT_WRITE_SLEEP_T
         self.write_sleep_cnt = DFLT_WRITE_SLEEP_CNT
@@ -106,7 +110,11 @@ class BAI:
         # Read and parse return string
         rtn_str = self.comm.readline()
         rtn_str = rtn_str[len(START_CHRS)+1:-len(STOP_CHRS)]
-        pos_int = int(rtn_str)
+        try:
+            pos_int = int(rtn_str)
+        except:
+            print 'WARNING: bad rtn_str'
+            pos_int = 0
         return pos_int
     
     def get_status(self,address=None):
@@ -134,7 +142,6 @@ class BAI:
             status_dict[msg] = val
         return status_dict
 
-
     def print_status(self, address=None):
         """
         Print status information
@@ -148,7 +155,6 @@ class BAI:
             print '%s:'%(msg,),
             print ' '*(30-len(msg)),
             print '%s'%(str(status_dict[msg]),)
-
 
     def read_param(self,param,address=None):
         """
